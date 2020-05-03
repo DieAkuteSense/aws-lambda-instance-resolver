@@ -3,9 +3,9 @@ package edu.hm.cs.serverless.oscholz;
 import java.util.Map;
 
 /**
- * Created by Olli on 03.05.2020.
- * Package edu.hm.cs.serverless.oscholz
- * Project AWS Lambda
+ * Hold the response body as object
+ *
+ * @author Oliver Scholz
  */
 public class ResponseBody {
 
