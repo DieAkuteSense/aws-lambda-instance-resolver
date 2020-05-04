@@ -3,6 +3,7 @@ package edu.hm.cs.serverless.oscholz;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.google.gson.Gson;
+import org.apache.commons.lang3.SystemUtils;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -39,15 +40,18 @@ public class App implements RequestHandler<Object, Object> {
 		Map<String, String> osRelease = new HashMap<>();
 		gatherOsReleaseInfo(osRelease);
 
+		Map<String, String> cmdResults = new HashMap<>();
+		cmdResults.put("kernel_version", execShell("uname -r"));
+		cmdResults.put("hostname", execShell("uname -n"));
+
 		// LambdaLogger logger = context.getLogger();
 		// Files.list(new File("/etc").toPath()).forEach(p -> logger.log(p +"\n"));
 
 		try {
 			Gson gson = new Gson();
 			final String pageContents = this.getPageContents("https://checkip.amazonaws.com");
-			String output = String.format("{ \"location\": \"%s\", \"vm\": %s, \"os-release\": %s }", pageContents, gson.toJson(vmInfo), gson.toJson(osRelease));
 
-			ResponseBody body = new ResponseBody(vmInfo, osRelease, pageContents);
+			ResponseBody body = new ResponseBody(vmInfo, osRelease, pageContents, cmdResults);
 
 			return new GatewayResponse(body, headers, 200);
 		} catch (IOException e) {
@@ -108,5 +112,26 @@ public class App implements RequestHandler<Object, Object> {
 		} catch (IOException e) {
 			// currently ignore
 		}
+	}
+
+	private static String execShell(String cmd) {
+		StringBuilder sb = new StringBuilder();
+		if (SystemUtils.IS_OS_LINUX) {
+			try {
+				Process p = Runtime.getRuntime().exec(cmd);
+				BufferedReader br = new BufferedReader(
+						new InputStreamReader(p.getInputStream()));
+				String s;
+				while ((s = br.readLine()) != null) {
+					sb.append(s);
+				}
+				p.waitFor();
+				System.out.println ("exit: " + p.exitValue());
+				p.destroy();
+			} catch (IOException | InterruptedException e) {
+				// currently ignore
+			}
+		}
+		return sb.toString();
 	}
 }
