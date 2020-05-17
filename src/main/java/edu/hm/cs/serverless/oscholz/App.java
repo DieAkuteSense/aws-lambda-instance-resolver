@@ -2,15 +2,16 @@ package edu.hm.cs.serverless.oscholz;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-import com.google.gson.Gson;
 import org.apache.commons.lang3.SystemUtils;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -28,34 +29,36 @@ public class App implements RequestHandler<Object, Object> {
 	 * @param context Lambda Context
 	 * @return JSON containing VM and Instance ID
 	 */
-	public Object handleRequest(final Object input, final Context context) {
+	public GatewayResponse handleRequest(final Object input, final Context context) {
 		Map<String, String> headers = new HashMap<>();
 		headers.put("Content-Type", "application/json");
 		headers.put("X-Custom-Header", "application/json");
 
+		writeFileToTemp();
+
 		VmInfo vmInfo = new VmInfo();
 		gatherInstanceInfo(vmInfo);
 		gatherUptime(vmInfo);
+		gatherCpuModelName(vmInfo);
 
 		Map<String, String> osRelease = new HashMap<>();
 		gatherOsReleaseInfo(osRelease);
+
+		Map<String, String[]> directories = new HashMap<>();
+		listDirectory("/tmp", directories);
 
 		Map<String, String> cmdResults = new HashMap<>();
 		cmdResults.put("kernel_version", execShell("uname -r"));
 		cmdResults.put("hostname", execShell("uname -n"));
 
-		// LambdaLogger logger = context.getLogger();
-		// Files.list(new File("/etc").toPath()).forEach(p -> logger.log(p +"\n"));
-
 		try {
-			Gson gson = new Gson();
 			final String pageContents = this.getPageContents("https://checkip.amazonaws.com");
 
-			ResponseBody body = new ResponseBody(vmInfo, osRelease, pageContents, cmdResults);
-
+			ResponseBody body = new ResponseBody(vmInfo, osRelease, pageContents, cmdResults, directories);
 			return new GatewayResponse(body, headers, 200);
 		} catch (IOException e) {
-			return new GatewayResponse(null, headers, 500);
+			// return new GatewayResponse(null, headers, 500);
+			return null;
 		}
 	}
 
@@ -111,6 +114,40 @@ public class App implements RequestHandler<Object, Object> {
 			}
 		} catch (IOException e) {
 			// currently ignore
+		}
+	}
+
+	private static void gatherCpuModelName(VmInfo vmInfo) {
+		try {
+			BufferedReader brUptime = new BufferedReader(new FileReader("/proc/cpuinfo"));
+			String s = "";
+			while ((s = brUptime.readLine()) != null) {
+				if (s.startsWith("model name")) {
+					vmInfo.setCpuModel(s.split(":")[1].trim());
+				}
+			}
+		} catch (IOException e) {
+			// currently ignore
+		}
+	}
+
+	private static void writeFileToTemp() {
+		LocalDateTime date = LocalDateTime.now();
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+
+		execShell("touch /tmp/" + date.format(dateTimeFormatter));
+	}
+
+	private static void listDirectory(String directory, Map<String, String[]> directoies) {
+		try {
+			List<Path> files = Files.list(new File(directory).toPath()).collect(Collectors.toList());
+			String[] s = new String[files.size()];
+			for (int i = 0; i < files.size(); i++) {
+				s[i] = files.get(i).getFileName().toString();
+			}
+			directoies.put(directory, s);
+		} catch (IOException e) {
+			// currentiry ignore
 		}
 	}
 
