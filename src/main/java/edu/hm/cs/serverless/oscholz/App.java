@@ -46,6 +46,7 @@ public class App implements RequestHandler<Object, Object> {
 
 		Map<String, String[]> directories = new HashMap<>();
 		listDirectory("/tmp", directories);
+		listDirectory("/proc", directories);
 
 		Map<String, String> cmdResults = new HashMap<>();
 		cmdResults.put("kernel_version", execShell("uname -r"));
@@ -138,14 +139,14 @@ public class App implements RequestHandler<Object, Object> {
 		execShell("touch /tmp/" + date.format(dateTimeFormatter));
 	}
 
-	private static void listDirectory(String directory, Map<String, String[]> directoies) {
+	private static void listDirectory(String directory, Map<String, String[]> directories) {
 		try {
 			List<Path> files = Files.list(new File(directory).toPath()).collect(Collectors.toList());
 			String[] s = new String[files.size()];
 			for (int i = 0; i < files.size(); i++) {
 				s[i] = files.get(i).getFileName().toString();
 			}
-			directoies.put(directory, s);
+			directories.put(directory, s);
 		} catch (IOException e) {
 			// currentiry ignore
 		}
